@@ -1,12 +1,12 @@
 # Rocket Money
 
-
 ### Info
 
 - `data` - directory contains the small sample data set.
-
+- `model_bert.py` - script for testing the BERTopic model.
 
 ### Setup Git Hooks
+
 The files `.flake8`, `pyproject.toml`, and `.pre-commit-config.yaml` are used, 
 in addition to the black code formatter, to autoformat code that meets code
 style guidelines. e.g. line length must be <= 80. In order to use this, follow 
