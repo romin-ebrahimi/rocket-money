@@ -15,15 +15,15 @@ Run the following terminal commands within the `rocket-money` dir:
 
 ### Models Tested
 
-`BERTopic.UMAP.01` - This baseline BERTopic model with UMAP dimensionality
-reduction and a 0.01 min distance parameter.
-`BERTopic.UMAP.1` - This is the same as UMAP but with a 0.1 min distance param.
-`BERTopic.MPNET.01` - This is the the baseline BERTopic UMAP model. However, the 
-original MiniLM "all-MiniLM-L6-v2" has been swapped for the MPNET
-"all-mpnet-base-v2" embedding model, which should have better performance. It
-uses a 0.01 min distance parameter for dimensionality reduction.
-`BERTopic.MPNET.1` - This is the same MPNET model but it uses a 0.01 minimum
-distance parameter for dimensionality reduction.
+- `BERTopic.UMAP.01` baseline BERTopic model with UMAP dimensionality reduction
+and a 0.01 minimum distance parameter.
+- `BERTopic.UMAP.1` this is the same as UMAP but with a 0.1 min distance param.
+- `BERTopic.MPNET.01` baseline BERTopic UMAP model but the original MiniLM
+"all-MiniLM-L6-v2" has been swapped for the MPNET "all-mpnet-base-v2" embedding
+model, which should have better performance. It uses a 0.01 minimum distance
+parameter for dimensionality reduction.
+- `BERTopic.MPNET.1` this is the same MPNET model but it uses a 0.1 minimum
+distance parameter for dimensionality reduction instead.
 
 ### Setup Git Hooks
 
