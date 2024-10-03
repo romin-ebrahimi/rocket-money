@@ -25,31 +25,25 @@ if __name__ == "__main__":
     # In the interest of berevity, use grid search cross validation to
     # test a handful of models that vary in the clustering and dimensionality
     # reduction methods used. 10% is held out for a final test set.
+    # This ignores any temporal dependence in the data. If a time stamp exists,
+    # it is better to use time series cross validation to avoid data leakage.
     Xtr, Xte = train_test_split(
         data_transactions[["original_description"]],
         test_size=0.1,
         shuffle=True,
     )
 
-    # Guided topic modeling nudges BERT to converge on those topics.
+    # Guided topic modeling nudges BERT to converge on those topics. This hash
+    # map is used to map classified transactions into meaningful categories.
     seed_topic_list = [
-        "credit card",
-        "subscription",
-        "utilities",
-        "rent",
-        "dining",
-        "entertainment",
-        "investment",
+        ["investment", "invest"],
+        ["credit card", "comenity"],
+        ["subscription", "membership", "annual", "monthly", "recurring"],
+        ["dining", "restaurant", "doordash", "food"],
+        ["insurance", "geico", "state farm", "progressive insurance"],
     ]
 
-    k_fold = KFold(
-        n_splits=5,
-        shuffle=True,
-    )
-
     # Dictionary of the handful of BERTopic models to test.
-    # BERTopic models are a sequential implementation of sentence-transformers,
-    # UMAP, HDBSCAN, and c-TF-IDF.
     models = {
         "BERTopic.UMAP.01": BERTopic(
             language="english",
@@ -62,6 +56,7 @@ if __name__ == "__main__":
             ),
             embedding_model="all-MiniLM-L6-v2",
             calculate_probabilities=True,
+            nr_topics=10,
         ),
         "BERTopic.UMAP.1": BERTopic(
             language="english",
@@ -74,6 +69,7 @@ if __name__ == "__main__":
             ),
             embedding_model="all-MiniLM-L6-v2",
             calculate_probabilities=True,
+            nr_topics=10,
         ),
         "BERTopic.MPNET.01": BERTopic(
             language="english",
@@ -86,6 +82,7 @@ if __name__ == "__main__":
             ),
             embedding_model="all-mpnet-base-v2",
             calculate_probabilities=True,
+            nr_topics=10,
         ),
         "BERTopic.MPNET.1": BERTopic(
             language="english",
@@ -98,8 +95,11 @@ if __name__ == "__main__":
             ),
             embedding_model="all-mpnet-base-v2",
             calculate_probabilities=True,
+            nr_topics=10,
         ),
     }
+
+    k_fold = KFold(n_splits=5, shuffle=True)
 
     # Store the performance metrics for each model to select the best later.
     stats = dict()
@@ -129,6 +129,8 @@ if __name__ == "__main__":
                 ].original_description.tolist()
             )
 
+            log.info(f"Topic info: {model.get_topic_info()}")
+
             # Evaluate models using purity score and unclassified rate.
             purity_tr.append(metrics.purity(probs=probs_tr))
             purity_te.append(metrics.purity(probs=probs_te))
@@ -136,6 +138,7 @@ if __name__ == "__main__":
             unclass_te.append(metrics.unclassified_rate(topics=topics_te))
 
         stats[model_name] = dict()
+        # Store training and validation stats in a dictionary for each model.
         stats[model_name]["purity_tr"] = round(np.mean(purity_tr), 4)
         stats[model_name]["purity_te"] = round(np.mean(purity_te), 4)
         stats[model_name]["unclass_tr"] = round(np.mean(unclass_tr), 4)
@@ -146,7 +149,33 @@ if __name__ == "__main__":
         log.info(f"Training unclass rate: {stats[model_name]['unclass_tr']}")
         log.info(f"Validation unclass rate: {stats[model_name]['unclass_te']}")
 
-    # TODO: using the selected model training/test evaluation
+    # Select the model with the highest average purity score from the previous
+    # 5-fold cross validation tests.
+    best_purity = 0.0
+    for model_name, stat_dict in stats.items():
+        if stat_dict["purity_te"] > best_purity:
+            best_model_name = model_name
+            best_purity = stat_dict["purity_te"]
 
-    # TODO: with that model print out the top topics.
-    # model.get_topic_info() and log it in console.
+    log.info(f"Best model {best_model_name} has purity score {best_purity}.")
+
+    # Train the best model with the full training data set and run it on the 10%
+    # of data that was held out for testing.
+    best_model = clone(models[best_model_name])
+    topics_tr, probs_tr = best_model.fit_transform(Xtr.original_description.tolist())
+    topics_te, probs_te = best_model.transform(Xte.original_description.tolist())
+    purity_tr = round(metrics.purity(probs=probs_tr), 4)
+    purity_te = round(metrics.purity(probs=probs_te), 4)
+    unclass_tr = round(metrics.unclassified_rate(topics=topics_tr), 4)
+    unclass_te = round(metrics.unclassified_rate(topics=topics_te), 4)
+
+    log.info(f"Training purity score for best model {purity_tr}")
+    log.info(f"Testing purity score for best model {purity_te}")
+    log.info(f"Training unclassified rate for best model {unclass_tr}")
+    log.info(f"Testing unclassified rate for best model {unclass_te}")
+    log.info(f"Topic info: {best_model.get_topic_info()}")
+    # Show the breakdown of the top 5 topics to see if they align with seeding.
+    log.info(f"Top 5 topics for best model {best_model_name}.")
+    # Topic -1 is the unclassified topic, which does not represent anything.
+    for i in range(5):
+        log.info(f"Topic {i} : {best_model.get_topic(i)}")
