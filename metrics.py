@@ -1,30 +1,56 @@
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import CountVectorizer
+from gensim.models import CoherenceModel
+from gensim.corpora.dictionary import Dictionary
 
 
 def coherence(
-    embeddings: np.ndarray,
-    labels: np.ndarray,
+    bert_model,
+    documents: list,
+    coherence: str = "c_v",
 ) -> float:
     """
+    Generate a coherence score for a trained BERTopic model.
+
     Args:
-        embeddings:
-        labels:
+        bert_model: trained BERTopic model.
+        documents: (list) of documents used to train the BERTopic model.
+        coherence: (str) one of { c_v, c_umass, c_npmi, c_uci }
 
     Returns:
         (float) coherence score.
     """
-    unique_labels = set(labels)
-    coherence_scores = []
+    # Extract topics and their corresponding top words.
+    topics = bert_model.get_topics()
+    topic_words = []
+    for topic in topics.values():
+        top_words = [word for word, _ in topic]
+        topic_words.append(top_words)
 
-    for label in unique_labels:
-        topic_embeddings = embeddings[labels == label]
-        if len(topic_embeddings) > 1:
-            sim_matrix = cosine_similarity(topic_embeddings)
-            avg_coherence = np.mean(sim_matrix)
-            coherence_scores.append(avg_coherence)
+    # Preprocess the documents for coherence model.
+    vectorizer = CountVectorizer(stop_words="english")
+    vectorizer.fit(documents)
+    dictionary = Dictionary()
+    dictionary.token2id = vectorizer.vocabulary_
 
-    return np.mean(coherence_scores)
+    coherence_model = CoherenceModel(
+        topics=topic_words,
+        texts=vectorizer.get_feature_names_out(),
+        dictionary=dictionary,
+        coherence=coherence,
+        processes=1,
+        window_size=8,
+    )
+
+    # TODO: need to create a custom method that manually calculates coherence
+    # The CoherenceModel from gensim works well with LDA models but not
+    # BERTopic. It should be able to natively calculate these values.
+    cosine_similarity()
+
+    coherence_score = coherence_model.get_coherence()
+
+    return coherence_score
 
 
 def purity(probs: np.ndarray) -> float:
@@ -38,6 +64,12 @@ def purity(probs: np.ndarray) -> float:
     Returns:
         (float) average purity metric.
     """
+
+    # This is wrong, calculation comes from iterating through confusion matrix
+    # where the rows are clusters and the columns are the counts of classified
+    # labels. In each category row take the max count and store in an array.
+    # Average purity becomes the sum of the max counts divided by the set size.
+
     # Maximum probability for each transaction.
     max_probability = np.max(probs, axis=1)
     # Average of the maximum probabilities.

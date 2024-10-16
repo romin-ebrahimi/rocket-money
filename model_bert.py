@@ -106,9 +106,9 @@ if __name__ == "__main__":
     for model_name, base_model in models.items():
         log.info(f"Running k-fold cross validation for model: {model_name}.")
 
-        # Store the training and validation purity score and unclassified rates.
-        purity_tr = list()
-        purity_te = list()
+        # Training and validation coherence score and unclassified rates.
+        c_tr = list()
+        c_te = list()
         unclass_tr = list()
         unclass_te = list()
 
@@ -131,51 +131,63 @@ if __name__ == "__main__":
 
             log.info(f"Topic info: {model.get_topic_info()}")
 
-            # Evaluate models using purity score and unclassified rate.
-            purity_tr.append(metrics.purity(probs=probs_tr))
-            purity_te.append(metrics.purity(probs=probs_te))
+            # Evaluate models using coherence score and unclassified rate.
+            c_tr.append(
+                metrics.coherence(
+                    bert_model=model,
+                    documents=Xtr.iloc[
+                        train_indices[0] : train_indices[-1]
+                    ].original_description.tolist(),
+                )
+            )
+            c_te.append(
+                metrics.coherence(
+                    bert_model=model,
+                    documents=Xte.iloc[
+                        test_indices[0] : test_indices[-1]
+                    ].original_description.tolist(),
+                )
+            )
             unclass_tr.append(metrics.unclassified_rate(topics=topics_tr))
             unclass_te.append(metrics.unclassified_rate(topics=topics_te))
 
         stats[model_name] = dict()
         # Store training and validation stats in a dictionary for each model.
-        stats[model_name]["purity_tr"] = round(np.mean(purity_tr), 4)
-        stats[model_name]["purity_te"] = round(np.mean(purity_te), 4)
+        stats[model_name]["c_tr"] = round(np.mean(c_tr), 4)
+        stats[model_name]["c_te"] = round(np.mean(c_te), 4)
         stats[model_name]["unclass_tr"] = round(np.mean(unclass_tr), 4)
         stats[model_name]["unclass_te"] = round(np.mean(unclass_te), 4)
 
-        log.info(f"Training purity score: {stats[model_name]['purity_tr']}")
-        log.info(f"Validation purity score: {stats[model_name]['purity_te']}")
+        log.info(f"Training coherence score: {stats[model_name]['c_tr']}")
+        log.info(f"Validation coherence score: {stats[model_name]['c_te']}")
         log.info(f"Training unclass rate: {stats[model_name]['unclass_tr']}")
         log.info(f"Validation unclass rate: {stats[model_name]['unclass_te']}")
 
-    # Select the model with the highest average purity score from the previous
+    # Select the model with the highest coherence score from the previous
     # 5-fold cross validation tests.
-    best_purity = 0.0
+    best_coherence = 0.0
     for model_name, stat_dict in stats.items():
-        if stat_dict["purity_te"] > best_purity:
+        if stat_dict["c_te"] > best_coherence:
             best_model_name = model_name
-            best_purity = stat_dict["purity_te"]
+            best_purity = stat_dict["c_te"]
 
-    log.info(f"Best model {best_model_name} has purity score {best_purity}.")
+    log.info(f"Best model {best_model_name} has purity score {best_coherence}.")
 
     # Train the best model with the full training data set and run it on the 10%
     # of data that was held out for testing.
     best_model = clone(models[best_model_name])
     topics_tr, probs_tr = best_model.fit_transform(Xtr.original_description.tolist())
     topics_te, probs_te = best_model.transform(Xte.original_description.tolist())
-    purity_tr = round(metrics.purity(probs=probs_tr), 4)
-    purity_te = round(metrics.purity(probs=probs_te), 4)
+
     unclass_tr = round(metrics.unclassified_rate(topics=topics_tr), 4)
     unclass_te = round(metrics.unclassified_rate(topics=topics_te), 4)
-
-    log.info(f"Training purity score for best model {purity_tr}")
-    log.info(f"Testing purity score for best model {purity_te}")
     log.info(f"Training unclassified rate for best model {unclass_tr}")
     log.info(f"Testing unclassified rate for best model {unclass_te}")
     log.info(f"Topic info: {best_model.get_topic_info()}")
+
     # Show the breakdown of the top 5 topics to see if they align with seeding.
     log.info(f"Top 5 topics for best model {best_model_name}.")
+
     # Topic -1 is the unclassified topic, which does not represent anything.
     for i in range(5):
         log.info(f"Topic {i} : {best_model.get_topic(i)}")
